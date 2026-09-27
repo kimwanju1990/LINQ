@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>초등 교과 링큐 (Linq) - 교과 스파이를 찾아라!</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Gmarket+Sans:wght@500;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
+            min-height: 100vh;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .font-display {
+            font-family: 'Gmarket Sans', 'Noto Sans KR', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+        .animate-bounce-short {
+            animation: bounce 0.6s ease infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-8px); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.25s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="text-slate-800 flex flex-col justify-between min-h-screen p-3 sm:p-5">
+
+    <div id="app" class="max-w-md mx-auto w-full flex-1 flex flex-col justify-between my-auto">
+        
+        <!-- Header -->
+        <header class="text-center py-2 mb-2 relative">
+            <div class="flex items-center justify-between px-1 mb-1">
+                <div class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                    <i class="fa-solid fa-graduation-cap"></i> 초등 교과 링큐 (Linq)
+                </div>
+                <!-- 우측 상단 점수 규칙 확인 버튼 -->
+                <button type="button" onclick="showScoreRulesModal()" 
+                    class="bg-amber-500 hover:bg-amber-600 text-slate-900 px-2.5 py-1 rounded-full text-xs font-black shadow-md transition-transform active:scale-95 flex items-center gap-1">
+                    <i class="fa-solid fa-scroll"></i> 점수 규칙
+                </button>
+            </div>
+            <h1 class="text-2xl font-black text-slate-800 font-display tracking-tight">
+                🔍 교과 스파이를 찾아라!
+            </h1>
+        </header>
+
+        <main id="main-content" class="flex-1 flex flex-col justify-center">
+            <!-- Dynamic Content Injected Here -->
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center py-3 text-xs text-slate-500 font-medium">
+            스마트폰 1대로 즐기는 초등 1~6학년 맞춤형 추리 게임 📱
+        </footer>
+    </div>
+
+    <script>
+        const state = {
+            step: 'SETUP', // SETUP, ROLE_CHECK, CLUE_GUIDE, VOTING, ROUND_RESULT, GAME_OVER
+            players: [],
+            numPlayers: 4,
+            gradeGroup: '5-6',
+            subject: 'social',
+            customWordsInput: '',
+            
+            // Round Game state
+            currentRound: 1,
+            totalRounds: 4, // 무조건 4라운드 고정
+            secretWordObj: null,
+            spies: [],
+            activePlayerIdx: 0,
+            startPlayerIdx: 0,
+            votes: {}, // { voterIdx: [votedIdx1, votedIdx2] }
+            scores: {},
+            lastRoundDetails: []
+        };
+
+        const WORD_POOLS = {
+            '1-2': {
+                social: [
+                    { word: '학교', desc: '배우고 친구들과 함께 공부하는 곳입니다.' },
+                    { word: '교실', desc: '선생님과 학생들이 수업을 받는 방입니다.' },
+                    { word: '경찰', desc: '동네의 안전을 지키고 질서를 유지합니다.' },
+                    { word: '소방관', desc: '불을 끄고 위험에 처한 사람을 구합니다.' },
+                    { word: '가방', desc: '책과 공책을 넣어서 학교에 들고 다닙니다.' }
+                ],
+                science: [
+                    { word: '동물', desc: '움직이고 숨을 쉬는 살아있는 생물입니다.' },
+                    { word: '식물', desc: '뿌리를 내리고 햇빛을 받아 자랍니다.' },
+                    { word: '씨앗', desc: '땅에 심으면 싹이 트고 자라납니다.' },
+                    { word: '나무', desc: '줄기가 굵고 잎과 가지가 많은 식물입니다.' },
+                    { word: '계절', desc: '봄, 여름, 가을, 겨울의 날씨 변화입니다.' }
+                ],
+                korean: [
+                    { word: '글자', desc: '생각이나 말을 적는 기호입니다.' },
+                    { word: '문장', desc: '생각을 완벽하게 나타낸 글의 마디입니다.' },
+                    { word: '일기', desc: '하루 동안 있었던 일을 기록한 글입니다.' },
+                    { word: '느낌', desc: '마음속에 일어나는 기분이나 감정입니다.' },
+                    { word: '소리', desc: '귀로 들을 수 있는 떨림이나 울림입니다.' }
+                ],
+                ethics: [
+                    { word: '약속', desc: '다른 사람과 앞으로 할 일을 정하는 것입니다.' },
+                    { word: '인사', desc: '반갑게 맞아주거나 예의를 표하는 행동입니다.' },
+                    { word: '친절', desc: '상대방을 정성껏 대하고 도와주는 마음입니다.' },
+                    { word: '질서', desc: '차례를 지키고 규칙을 따르는 모습입니다.' },
+                    { word: '감사', desc: '고마워하는 마음을 느끼고 나타내는 것입니다.' }
+                ],
+                math: [
+                    { word: '숫자', desc: '수량을 나타내기 위해 쓰는 기호입니다.' },
+                    { word: '덧셈', desc: '수를 더하여 합을 구하는 계산입니다.' },
+                    { word: '뺄셈', desc: '수에서 다른 수를 빼는 계산입니다.' },
+                    { word: '도형', desc: '동그라미, 세모, 네모 같은 모양입니다.' },
+                    { word: '시계', desc: '시각과 시간을 알려주는 도구입니다.' }
+                ],
+                play: [
+                    { word: '술래', desc: '놀이에서 다른 사람을 잡거나 찾는 사람입니다.' },
+                    { word: '줄넘기', desc: '줄을 돌리며 뛰어넘는 운동 놀이입니다.' },
+                    { word: '풍선', desc: '공기를 넣어 크게 부풀리는 장난감입니다.' },
+                    { word: '시소', desc: '양쪽에 타고 위아래로 올라갔다 내려가는 기구입니다.' },
+                    { word: '그네', desc: '줄에 매달려 앞뒤로 왔다 갔다 하는 놀이기구입니다.' }
+                ]
+            },
+            '3-4': {
+                social: [
+                    { word: '지도', desc: '땅의 모습이나 위치를 기호로 그린 그림입니다.' },
+                    { word: '기호', desc: '지도에서 땅의 모습을 간단히 나타낸 표시입니다.' },
+                    { word: '방위', desc: '동, 서, 남, 북처럼 방향을 나타내는 기준입니다.' },
+                    { word: '시장', desc: '물건을 사고파는 사람들이 모이는 장소입니다.' },
+                    { word: '문화재', desc: '옛날부터 전해 내려오는 가치 있는 물건이나 유적입니다.' }
+                ],
+                science: [
+                    { word: '자석', desc: '철로 된 물체를 끌어당기는 성질을 가진 물체입니다.' },
+                    { word: '지층', desc: '자갈, 모래, 진흙 등이 쌓여 이루어진 층입니다.' },
+                    { word: '화석', desc: '옛날에 살았던 생물의 흔적이 돌처럼 남아있는 것입니다.' },
+                    { word: '나침반', desc: '자석을 이용해 동서남북 방위를 찾는 도구입니다.' },
+                    { word: '공기', desc: '지구를 둘러싸고 있는 눈에 보이지 않는 기체입니다.' }
+                ],
+                korean: [
+                    { word: '사전', desc: '단어의 뜻과 쓰임새를 모아놓은 책입니다.' },
+                    { word: '문단', desc: '중심 생각이 들어있는 여러 문장의 모임입니다.' },
+                    { word: '대화', desc: '두 사람 이상이 마주 보고 이야기를 나누는 것입니다.' },
+                    { word: '제안', desc: '어떤 일을 이렇게 하자고 의견을 내놓는 것입니다.' },
+                    { word: '감상', desc: '책이나 작품을 보고 느낀 점을 생각하는 것입니다.' }
+                ],
+                ethics: [
+                    { word: '예의', desc: '사람을 대할 때 갖추어야 할 바른 태도입니다.' },
+                    { word: '존중', desc: '다른 사람의 가치를 귀하게 여기는 마음입니다.' },
+                    { word: '공평', desc: '어느 한쪽으로 치우치지 않고 바른 것입니다.' },
+                    { word: '협동', desc: '서로 마음과 힘을 합쳐 일을 해내는 것입니다.' },
+                    { word: '정직', desc: '거짓 없이 솔직하고 바른 마음가짐입니다.' }
+                ],
+                math: [
+                    { word: '분수', desc: '전체를 똑같이 나눈 것 중의 일부를 나타낸 수입니다.' },
+                    { word: '소수', desc: '0.1처럼 소수점을 사용하여 나타낸 수입니다.' },
+                    { word: '각도', desc: '두 선이 벌어진 정도의 크기입니다.' },
+                    { word: '삼각형', desc: '세 개의 변과 세 개의 꼭짓점으로 이루어진 도형입니다.' },
+                    { word: '곱셈', desc: '같은 수를 여러 번 더하는 것을 간단히 한 계산입니다.' }
+                ],
+                play: [
+                    { word: '피구', desc: '공을 던져 상대방을 맞혀 코트 밖으로 보내는 게임입니다.' },
+                    { word: '딱지', desc: '종이를 접어 땅에 치며 넘겨 빼앗는 놀이입니다.' },
+                    { word: '팽이', desc: '줄로 감아 바닥에서 회전시키는 장난감입니다.' },
+                    { word: '제기', desc: '발로 차 올리며 떨뜨리지 않고 즐기는 전통 놀이입니다.' },
+                    { word: '발야구', desc: '공을 발로 차고 루를 돌아 점수를 내는 경기입니다.' }
+                ]
+            },
+            '5-6': {
+                social: [
+                    { word: '인권', desc: '사람이라면 누구나 누려야 할 기본적인 권리입니다.' },
+                    { word: '헌법', desc: '국가의 가장 바탕이 되는 최고의 법입니다.' },
+                    { word: '민주주의', desc: '국민이 주인이 되어 권력을 행사하는 정치 방식입니다.' },
+                    { word: '선거', desc: '대표자를 국민의 투표로 뽑는 행위입니다.' },
+                    { word: '정부', desc: '법을 바탕으로 나라의 일을 맡아 처리하는 기관입니다.' }
+                ],
+                science: [
+                    { word: '광합성', desc: '식물이 햇빛을 받아 스스로 양분을 만드는 작용입니다.' },
+                    { word: '세포', desc: '생물체를 이루는 가장 기본 단위입니다.' },
+                    { word: '용해', desc: '한 물질이 다른 물질에 골고루 녹아 섞이는 현상입니다.' },
+                    { word: '산성', desc: '신맛이 나고 리트머스 종이를 붉게 변화시키는 성질입니다.' },
+                    { word: '온도', desc: '물체의 차갑고 뜨거운 정도를 나타낸 수치입니다.' }
+                ],
+                korean: [
+                    { word: '토론', desc: '찬성과 반대로 나누어 서로의 의견을 논증하는 대화입니다.' },
+                    { word: '주장', desc: '자신의 의견이나 생각을 강하게 내세우는 것입니다.' },
+                    { word: '근거', desc: '주장을 뒷받침하는 올바른 이유나 바탕입니다.' },
+                    { word: '관점', desc: '사물이나 현상을 바라보는 자신만의 방향이나 생각입니다.' },
+                    { word: '속담', desc: '옛날부터 교훈을 담아 전해 오는 짧은 말입니다.' }
+                ],
+                ethics: [
+                    { word: '공정', desc: '공평하고 바르며 치우침이 없는 자세입니다.' },
+                    { word: '정의', desc: '바르고 올바른 이치나 사회적 도덕 기준입니다.' },
+                    { word: '평화', desc: '전쟁이나 다툼 없이 평온한 상태입니다.' },
+                    { word: '통일', desc: '하나로 합쳐서 하나가 되게 하는 것입니다.' },
+                    { word: '봉사', desc: '남이나 사회를 위해 대가 없이 힘을 쓰는 일입니다.' }
+                ],
+                math: [
+                    { word: '약수', desc: '어떤 수를 나누어떨어지게 하는 수입니다.' },
+                    { word: '배수', desc: '어떤 수를 1배, 2배, 3배 한 수입니다.' },
+                    { word: '합동', desc: '모양과 크기가 완전히 같아서 겹쳐지는 두 도형입니다.' },
+                    { word: '대칭', desc: '접었을 때 완전히 겹치는 모양의 성질입니다.' },
+                    { word: '원주율', desc: '원의 지름에 대한 원둘레의 비율(약 3.14)입니다.' }
+                ],
+                play: [
+                    { word: '축구', desc: '발로 공을 차서 상대 골대에 넣는 경기입니다.' },
+                    { word: '농구', desc: '손으로 공을 튕겨 높은 림 골대에 넣는 경기입니다.' },
+                    { word: '배드민턴', desc: '라켓으로 셔틀콕을 주고받는 운동 경기입니다.' },
+                    { word: '릴레이', desc: '바통을 이어서 주고받으며 달리는 계주 경기입니다.' },
+                    { word: '피구공', desc: '피구를 할 때 사용하는 말랑말랑한 공입니다.' }
+                ]
+            }
+        };
+
+        function getWordPool() {
+            if (state.subject === 'custom') {
+                const words = state.customWordsInput
+                    .split(/[\n,]+/)
+                    .map(w => w.trim().replace(/\s+/g, ''))
+                    .filter(w => w.length > 0);
+                if (words.length > 0) {
+                    return words.map(w => ({ word: w, desc: '선생님이 지정하신 비밀 단어입니다.' }));
+                }
+                return [{ word: '세종대왕', desc: '선생님 입력이 없어 기본 단어로 세팅되었습니다.' }];
+            }
+            const group = WORD_POOLS[state.gradeGroup] || WORD_POOLS['5-6'];
+            return group[state.subject] || group['social'];
+        }
+
+        function showScoreRulesModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn';
+            modal.innerHTML = `
+                <div class="bg-white p-5 rounded-3xl shadow-2xl max-w-sm w-full text-left space-y-4 max-h-[85vh] overflow-y-auto border border-slate-100">
+                    <div class="flex items-center justify-between border-b pb-2">
+                        <h3 class="text-base font-black text-slate-800 font-display flex items-center gap-2">
+                            <i class="fa-solid fa-trophy text-amber-500"></i> 간단 점수 산출 규칙
+                        </h3>
+                        <button type="button" onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600 font-bold text-lg p-1">✕</button>
+                    </div>
+
+                    <div class="space-y-2.5 text-xs">
+                        <!-- 1번 규칙 -->
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-2xl">
+                            <div class="font-black text-blue-900 flex items-center gap-1.5 mb-1">
+                                <span class="bg-blue-600 text-white w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px]">1</span>
+                                스파이: 성공
+                            </div>
+                            <p class="text-blue-800 font-medium">지목한 2명이 **나와 상대 스파이**인 경우 👉 <strong class="text-blue-900 font-black">+3점</strong></p>
+                        </div>
+
+                        <!-- 2번 규칙 -->
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                            <div class="font-black text-slate-700 flex items-center gap-1.5 mb-1">
+                                <span class="bg-slate-500 text-white w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px]">2</span>
+                                스파이: 실패
+                            </div>
+                            <p class="text-slate-600 font-medium">나 혹은 상대 스파이를 찾지 못한 경우 👉 <strong class="text-slate-800 font-black">+0점</strong></p>
+                        </div>
+
+                        <!-- 3번 규칙 -->
+                        <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl">
+                            <div class="font-black text-emerald-900 flex items-center gap-1.5 mb-1">
+                                <span class="bg-emerald-600 text-white w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px]">3</span>
+                                더블 에이전트: 스파이 정답
+                            </div>
+                            <p class="text-emerald-800 font-medium">지목한 2명이 **두 스파이 모두**인 경우 👉 <strong class="text-emerald-950 font-black">+2점</strong></p>
+                        </div>
+
+                        <!-- 4번 규칙 -->
+                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl">
+                            <div class="font-black text-amber-900 flex items-center gap-1.5 mb-1">
+                                <span class="bg-amber-600 text-white w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px]">4</span>
+                                더블 에이전트: 어그로/교란
+                            </div>
+                            <p class="text-amber-800 font-medium">나를 제외한 다른 사람 중 한 명이라도 나를 지목한 경우 👉 <strong class="text-amber-950 font-black">+1점</strong></p>
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="this.closest('.fixed').remove()" 
+                        class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow">
+                        확인 완료
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function showToastModal(message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn';
+            modal.innerHTML = `
+                <div class="bg-white p-5 rounded-3xl shadow-2xl max-w-xs w-full text-center space-y-3">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                    </div>
+                    <p class="text-xs font-bold text-slate-800 leading-relaxed">${message}</p>
+                    <button type="button" onclick="this.closest('.fixed').remove()" 
+                        class="w-full py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow">
+                        확인
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function startGame() {
+            if (state.players.length !== state.numPlayers) {
+                state.players = Array.from({ length: state.numPlayers }, (_, i) => state.players[i] || `학생 ${i + 1}`);
+            }
+
+            state.scores = {};
+            state.players.forEach((_, idx) => {
+                state.scores[idx] = 0;
+            });
+
+            state.currentRound = 1;
+            state.totalRounds = 4; // 무조건 4라운드 고정
+
+            initRound();
+        }
+
+        function initRound() {
+            const pool = getWordPool();
+            state.secretWordObj = pool[Math.floor(Math.random() * pool.length)];
+
+            // Fisher-Yates shuffle for totally fair random spy assignment
+            const indices = Array.from({ length: state.numPlayers }, (_, i) => i);
+            for (let i = indices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [indices[i], indices[j]] = [indices[j], indices[i]];
+            }
+            state.spies = indices.slice(0, 2);
+
+            state.activePlayerIdx = 0;
+            state.startPlayerIdx = (state.currentRound - 1) % state.numPlayers;
+            state.votes = {};
+
+            state.step = 'ROLE_CHECK';
+            render();
+        }
+
+        const $main = document.getElementById('main-content');
+
+        function render() {
+            switch (state.step) {
+                case 'SETUP':
+                    renderSetup();
+                    break;
+                case 'ROLE_CHECK':
+                    renderRoleCheck();
+                    break;
+                case 'CLUE_GUIDE':
+                    renderClueGuide();
+                    break;
+                case 'VOTING':
+                    renderVoting();
+                    break;
+                case 'ROUND_RESULT':
+                    renderRoundResult();
+                    break;
+                case 'GAME_OVER':
+                    renderGameOver();
+                    break;
+            }
+        }
+
+        function renderSetup() {
+            $main.innerHTML = `
+                <div class="glass-panel p-5 rounded-3xl shadow-xl space-y-4 border border-white animate-fadeIn">
+                    <!-- 1. 인원 선택 -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">👥 게임 인원 선택 (4~8명)</label>
+                        <div class="grid grid-cols-5 gap-1.5">
+                            ${[4, 5, 6, 7, 8].map(num => `
+                                <button type="button" onclick="setNumPlayers(${num})"
+                                    class="py-2 rounded-xl text-xs font-black transition-all ${state.numPlayers === num ? 'bg-indigo-600 text-white shadow-md scale-105' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                                    ${num}명
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 2. 학년 선택 -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">🎒 학년 (교육과정 수준)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${[
+                                { id: '1-2', label: '1~2학년' },
+                                { id: '3-4', label: '3~4학년' },
+                                { id: '5-6', label: '5~6학년' }
+                            ].map(g => `
+                                <button type="button" onclick="setGrade('${g.id}')"
+                                    class="py-2 px-1 rounded-xl text-xs font-bold transition-all ${state.gradeGroup === g.id ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                                    ${g.label}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 3. 교과 주제 선택 -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">📚 교과 주제 선택</label>
+                        <div class="grid grid-cols-3 gap-1.5 text-xs">
+                            ${[
+                                { id: 'social', label: '🏛️ 사회/역사' },
+                                { id: 'science', label: '🔬 과학' },
+                                { id: 'korean', label: '📖 국어' },
+                                { id: 'ethics', label: '🤝 도덕' },
+                                { id: 'math', label: '📐 수학' },
+                                { id: 'play', label: '🎈 놀이/체육' },
+                                { id: 'custom', label: '✏️ 선생님 직접입력', colSpan: true }
+                            ].map(subj => `
+                                <button type="button" onclick="setSubject('${subj.id}')"
+                                    class="py-2 px-2 rounded-xl font-bold transition-all ${subj.colSpan ? 'col-span-3' : ''} ${state.subject === subj.id ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                                    ${subj.label}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 선생님 주관식 입력 폼 -->
+                    ${state.subject === 'custom' ? `
+                        <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200 animate-fadeIn">
+                            <label class="block text-xs font-bold text-amber-900 mb-1">
+                                ✏️ 주관식 단어 입력 (쉼표 또는 줄바꿈으로 구분, 단일 단어)
+                            </label>
+                            <textarea id="custom-words-input" oninput="updateCustomWords(this.value)" rows="2" 
+                                placeholder="예: 세종대왕, 훈민정음, 집현전, 측우기, 해시계" 
+                                class="w-full text-xs p-2 rounded-xl border-amber-300 focus:ring-amber-500 focus:border-amber-500 bg-white">${state.customWordsInput}</textarea>
+                            <p class="text-[10px] text-amber-700 mt-1">* 입력하신 단어로만 비밀 단어가 무작위 선정됩니다.</p>
+                        </div>
+                    ` : ''}
+
+                    <!-- 4. 학생 이름 설정 -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">👥 학생 이름 설정</label>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            ${Array.from({ length: state.numPlayers }).map((_, i) => `
+                                <input type="text" id="player-name-${i}" value="${state.players[i] || '학생 ' + (i + 1)}" 
+                                    onchange="updatePlayerName(${i}, this.value)"
+                                    class="text-xs p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-center font-bold">
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 시작 버튼 -->
+                    <button type="button" onclick="startGame()" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base rounded-2xl shadow-lg transition-transform active:scale-95 font-display flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> 게임 시작하기
+                    </button>
+                </div>
+            `;
+        }
+
+        function setNumPlayers(num) {
+            state.numPlayers = num;
+            while (state.players.length < num) {
+                state.players.push(`학생 ${state.players.length + 1}`);
+            }
+            if (state.players.length > num) {
+                state.players = state.players.slice(0, num);
+            }
+            render();
+        }
+
+        function setGrade(gradeGroup) {
+            state.gradeGroup = gradeGroup;
+            render();
+        }
+
+        function setSubject(subject) {
+            state.subject = subject;
+            render();
+        }
+
+        function updateCustomWords(val) {
+            state.customWordsInput = val;
+        }
+
+        function updatePlayerName(idx, val) {
+            state.players[idx] = val.trim() || `학생 ${idx + 1}`;
+        }
+
+        function renderRoleCheck() {
+            const playerIdx = state.activePlayerIdx;
+            const playerName = state.players[playerIdx];
+            const isSpy = state.spies.includes(playerIdx);
+
+            $main.innerHTML = `
+                <div class="glass-panel p-6 rounded-3xl shadow-xl text-center space-y-5 border border-white animate-fadeIn">
+                    <div class="flex items-center justify-between bg-indigo-50 px-3 py-1.5 rounded-full text-xs font-bold text-indigo-700">
+                        <span>📍 라운드 ${state.currentRound} / ${state.totalRounds}</span>
+                        <span>📱 차례: ${playerIdx + 1} / ${state.numPlayers}</span>
+                    </div>
+
+                    <div class="py-2">
+                        <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
+                            <i class="fa-solid fa-mobile-screen-button"></i>
+                        </div>
+                        <h2 class="text-xl font-black text-slate-800 font-display">
+                            <span class="text-indigo-600">${playerName}</span> 님에게<br>스마트폰을 전달하세요!
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-2">다른 사람이 보지 못하도록 비밀을 유지해 주세요.</p>
+                    </div>
+
+                    <div id="role-secret-card" class="bg-slate-800 text-white p-5 rounded-2xl shadow-lg space-y-3">
+                        <div id="secret-hidden-content">
+                            <i class="fa-solid fa-user-lock text-3xl text-amber-400 mb-2"></i>
+                            <p class="text-sm font-bold">본인만 확인하려면 버튼을 누르세요</p>
+                            <button type="button" onclick="revealRoleSecret()" 
+                                class="mt-3 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-xs rounded-xl shadow transition-transform active:scale-95">
+                                👁️ 나의 역할 & 비밀단어 확인
+                            </button>
+                        </div>
+
+                        <div id="secret-revealed-content" class="hidden space-y-3 animate-fadeIn">
+                            ${isSpy ? `
+                                <div class="inline-block bg-red-500/20 text-red-300 border border-red-500/40 px-3 py-1 rounded-full text-xs font-bold">
+                                    🕵️ 당신은 [스파이] 입니다!
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-amber-500/30">
+                                    <div class="text-[10px] text-slate-400">비밀 단어</div>
+                                    <div class="text-2xl font-black text-amber-300 font-display mt-0.5">${state.secretWordObj.word}</div>
+                                </div>
+                                <p class="text-[11px] text-slate-300 leading-relaxed">
+                                    * 다른 스파이 1명도 당신과 같은 비밀 단어를 알고 있습니다.<br>
+                                    * 들키지 않게 연관 힌트를 주고받아 파트너를 찾으세요!
+                                </p>
+                            ` : `
+                                <div class="inline-block bg-blue-500/20 text-blue-300 border border-blue-500/40 px-3 py-1 rounded-full text-xs font-bold">
+                                    🕵️‍♂️ 당신은 [더블 에이전트] 입니다!
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                                    <div class="text-sm font-bold text-slate-300">비밀 단어를 모릅니다.</div>
+                                </div>
+                                <p class="text-[11px] text-slate-300 leading-relaxed">
+                                    * 스파이들의 힌트를 유심히 듣고 교과 단어를 추론하세요.<br>
+                                    * 자신도 스파이인 것처럼 블러핑하여 스파이를 발굴하세요!
+                                </p>
+                            `}
+
+                            <button type="button" onclick="nextRolePass()" 
+                                class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl shadow mt-2">
+                                확인 완료 (다음 사람에게 넘기기)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function revealRoleSecret() {
+            document.getElementById('secret-hidden-content').classList.add('hidden');
+            document.getElementById('secret-revealed-content').classList.remove('hidden');
+        }
+
+        function nextRolePass() {
+            state.activePlayerIdx++;
+            if (state.activePlayerIdx < state.numPlayers) {
+                renderRoleCheck();
+            } else {
+                state.step = 'CLUE_GUIDE';
+                render();
+            }
+        }
+
+        function renderClueGuide() {
+            const startPlayerName = state.players[state.startPlayerIdx || 0];
+
+            $main.innerHTML = `
+                <div class="glass-panel p-6 rounded-3xl shadow-xl text-center space-y-5 border border-white animate-fadeIn">
+                    <div class="flex items-center justify-between border-b pb-2 text-xs font-bold text-indigo-700">
+                        <span>🗣️ 힌트 말하기 단계</span>
+                        <span class="bg-indigo-50 px-2.5 py-1 rounded-full">라운드 ${state.currentRound} / ${state.totalRounds}</span>
+                    </div>
+
+                    <div class="py-2 space-y-3">
+                        <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-3xl mx-auto shadow-inner">
+                            <i class="fa-solid fa-comments"></i>
+                        </div>
+                        <h2 class="text-xl font-black text-slate-800 font-display leading-tight">
+                            만나서 직접 입으로<br>힌트를 말하세요!
+                        </h2>
+
+                        <div class="bg-amber-50 border border-amber-200/80 p-4 rounded-2xl text-xs text-amber-900 text-left space-y-2 font-medium shadow-sm">
+                            <p class="font-bold text-amber-950 flex items-center gap-1.5 text-sm border-b border-amber-200/60 pb-1.5">
+                                <i class="fa-solid fa-bullhorn text-amber-600"></i> 진행 순서 & 규칙
+                            </p>
+                            <p class="leading-relaxed">
+                                1️⃣ 시작 플레이어 <strong class="text-indigo-600 font-black">[${startPlayerName}]</strong> 님부터 시작합니다.<br>
+                                2️⃣ **시계 방향**으로 한 명씩 순서대로 돌아갑니다.<br>
+                                3️⃣ 차례마다 힌트 단어 **1개씩**, 총 **두 바퀴**를 돌며 말하세요!
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50/80 p-3 rounded-2xl text-[11px] text-indigo-900 text-left space-y-1 border border-indigo-100">
+                        <p>• 🕵️ <strong>스파이:</strong> 정체를 숨기고 파트너 스파이와 신호를 주고받으세요.</p>
+                        <p>• 🕵️‍♂️ <strong>더블 에이전트:</strong> 스파이들의 힌트를 듣고 스파이를 찾아내세요!</p>
+                    </div>
+
+                    <button type="button" onclick="goToVoting()" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-lg transition-transform active:scale-95 font-display flex items-center justify-center gap-2">
+                        두 바퀴 다 돌았습니다! (투표 단계로 이동) <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function goToVoting() {
+            state.activePlayerIdx = 0;
+            state.step = 'VOTING';
+            render();
+        }
+
+        function renderVoting() {
+            const voterIdx = state.activePlayerIdx;
+            const voterName = state.players[voterIdx];
+            const currentVotes = state.votes[voterIdx] || [];
+
+            $main.innerHTML = `
+                <div class="glass-panel p-5 rounded-3xl shadow-xl space-y-4 border border-white animate-fadeIn">
+                    <div class="bg-amber-500 text-slate-900 p-3 rounded-2xl flex items-center justify-between font-bold text-xs shadow-sm">
+                        <span>🕵️ 스파이 투표 (차례: ${voterIdx + 1}/${state.numPlayers})</span>
+                        <span class="bg-slate-900 text-white px-2 py-0.5 rounded-full">${voterName} 님의 지목</span>
+                    </div>
+
+                    <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-2xl text-xs text-indigo-900 space-y-1">
+                        <p class="font-bold flex items-center gap-1.5 text-indigo-950">
+                            <i class="fa-solid fa-user-secret text-indigo-600"></i> 스파이 2명 지목하기
+                        </p>
+                        <p class="text-[11px] text-indigo-800 leading-relaxed">
+                            의심스러운 <strong>스파이 2명</strong>을 지목해 주세요.<br>
+                            * 스파이는 본인과 상대 스파이를 모두 선택해야 점수를 얻습니다!
+                        </p>
+                    </div>
+
+                    <div class="border-t pt-2">
+                        <p class="text-xs font-black text-slate-800">
+                            👉 스파이로 의심되는 **2명**을 지목해 주세요: (선택: ${currentVotes.length}/2)
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        ${state.players.map((name, idx) => {
+                            const isSelected = currentVotes.includes(idx);
+                            const isSelf = idx === voterIdx;
+                            return `
+                                <button type="button" onclick="toggleVote(${voterIdx}, ${idx})"
+                                    class="p-2.5 rounded-2xl text-xs font-bold transition-all text-left flex items-center justify-between border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-[1.02]' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'}">
+                                    <span>${idx + 1}. ${name} ${isSelf ? '(본인)' : ''}</span>
+                                    ${isSelected ? '<i class="fa-solid fa-check-circle text-amber-300"></i>' : ''}
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <button type="button" onclick="nextVoter()" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-2xl shadow-md transition-transform active:scale-95 font-display">
+                        ${voterIdx + 1 < state.numPlayers ? '확인 및 다음 학생 투표' : '투표 마감 및 결과 진행'}
+                    </button>
+                </div>
+            `;
+        }
+
+        function toggleVote(voterIdx, targetIdx) {
+            if (!state.votes[voterIdx]) state.votes[voterIdx] = [];
+            const list = state.votes[voterIdx];
+            const pos = list.indexOf(targetIdx);
+            if (pos > -1) {
+                list.splice(pos, 1);
+            } else {
+                if (list.length >= 2) {
+                    list.shift(); // 2개 유지
+                }
+                list.push(targetIdx);
+            }
+            renderVoting();
+        }
+
+        function nextVoter() {
+            const voterIdx = state.activePlayerIdx;
+            if (!state.votes[voterIdx] || state.votes[voterIdx].length < 2) {
+                showToastModal("스파이 2명을 모두 지목해 주세요!");
+                return;
+            }
+
+            state.activePlayerIdx++;
+            if (state.activePlayerIdx < state.numPlayers) {
+                renderVoting();
+            } else {
+                calculateScoresAndProceed();
+            }
+        }
+
+        function calculateScoresAndProceed() {
+            state.lastRoundDetails = [];
+            const [spy1, spy2] = state.spies;
+
+            state.players.forEach((name, idx) => {
+                const isSpy = state.spies.includes(idx);
+                const myVotes = state.votes[idx] || [];
+                let roundScore = 0;
+                const reasons = [];
+
+                if (isSpy) {
+                    // 1. 스파이 규칙: 나와 상대 스파이를 모두 지목해야 +3점, 아니면 +0점
+                    const partnerSpyIdx = idx === spy1 ? spy2 : spy1;
+                    const pickedSelf = myVotes.includes(idx);
+                    const pickedPartner = myVotes.includes(partnerSpyIdx);
+
+                    if (pickedSelf && pickedPartner) {
+                        roundScore += 3;
+                        reasons.push("나와 상대 스파이 지목 성공 (+3점)");
+                    } else {
+                        reasons.push("나 또는 상대 스파이 지목 실패 (+0점)");
+                    }
+                } else {
+                    // 2. 더블 에이전트 규칙: 두 스파이 모두 찾으면 +2점
+                    const pickedBothSpies = myVotes.includes(spy1) && myVotes.includes(spy2);
+                    if (pickedBothSpies) {
+                        roundScore += 2;
+                        reasons.push("두 스파이 모두 지목 성공 (+2점)");
+                    }
+
+                    // 3. 더블 에이전트 규칙: 나를 제외한 타인이 한 명이라도 나를 지목하면 +1점
+                    const votedByOthers = state.players.some((_, voterIdx) => {
+                        if (voterIdx === idx) return false;
+                        return (state.votes[voterIdx] || []).includes(idx);
+                    });
+
+                    if (votedByOthers) {
+                        roundScore += 1;
+                        reasons.push("타인에게 스파이로 지목당함 (+1점)");
+                    }
+
+                    if (!pickedBothSpies && !votedByOthers) {
+                        reasons.push("득점 조건 미충족 (+0점)");
+                    }
+                }
+
+                state.scores[idx] = (state.scores[idx] || 0) + roundScore;
+
+                state.lastRoundDetails.push({
+                    playerIdx: idx,
+                    name: name,
+                    isSpy: isSpy,
+                    roundScore: roundScore,
+                    reasons: reasons,
+                    totalScore: state.scores[idx]
+                });
+            });
+
+            state.step = 'ROUND_RESULT';
+            render();
+        }
+
+        function renderRoundResult() {
+            const spyNames = state.spies.map(idx => state.players[idx]).join(', ');
+
+            $main.innerHTML = `
+                <div class="glass-panel p-5 rounded-3xl shadow-xl space-y-4 border border-white animate-fadeIn">
+                    <div class="text-center space-y-1">
+                        <span class="text-xs font-black bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
+                            라운드 ${state.currentRound} / ${state.totalRounds} 결과 발표
+                        </span>
+                        <h2 class="text-xl font-black text-slate-800 font-display mt-1">
+                            비밀 단어 & 스파이 공개!
+                        </h2>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-amber-500 to-indigo-600 p-4 rounded-2xl text-white shadow-md space-y-1">
+                        <div class="flex items-center justify-between text-xs font-bold text-amber-200">
+                            <span>🔑 이번 라운드 비밀 단어</span>
+                            <span>🕵️ 스파이: ${spyNames}</span>
+                        </div>
+                        <div class="text-2xl font-black font-display text-white tracking-wide">
+                            ${state.secretWordObj.word}
+                        </div>
+                        <p class="text-xs text-amber-100/90 leading-relaxed pt-1 border-t border-white/20">
+                            📚 <strong>개념 복습:</strong> ${state.secretWordObj.desc}
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-600 mb-2 flex items-center justify-between">
+                            <span>📊 해당 라운드 점수 및 획득 이유</span>
+                            <span class="text-[10px] text-slate-400">(해당 라운드 / 누적 점수)</span>
+                        </h3>
+
+                        <div class="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
+                            ${state.lastRoundDetails.map(item => `
+                                <div class="bg-white/90 p-3 rounded-2xl border border-slate-200 text-xs shadow-sm space-y-1">
+                                    <div class="flex items-center justify-between font-bold">
+                                        <span class="flex items-center gap-1">
+                                            ${item.isSpy ? '🕵️ <span class="text-red-600">[스파이]</span>' : '🕵️‍♂️ <span class="text-blue-600">[더블에이전트]</span>'}
+                                            ${item.name}
+                                        </span>
+                                        <span class="text-indigo-700 font-black">
+                                            +${item.roundScore}점 <span class="text-slate-400 font-normal">(총 ${item.totalScore}점)</span>
+                                        </span>
+                                    </div>
+                                    <div class="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 space-y-0.5">
+                                        ${item.reasons.length > 0 
+                                            ? item.reasons.map(r => `<div>• ${r}</div>`).join('')
+                                            : `<div>• 득점 없음 (0점)</div>`
+                                        }
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="nextRoundStep()" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-lg transition-transform active:scale-95 font-display flex items-center justify-center gap-2">
+                        ${state.currentRound < state.totalRounds ? `다음 라운드 진행하기 (${state.currentRound + 1}/${state.totalRounds}) ➡️` : '최종 게임 결과 보기 🏆'}
+                    </button>
+                </div>
+            `;
+        }
+
+        function nextRoundStep() {
+            if (state.currentRound < state.totalRounds) {
+                state.currentRound++;
+                initRound();
+            } else {
+                state.step = 'GAME_OVER';
+                render();
+            }
+        }
+
+        function renderGameOver() {
+            const leaderboard = state.players.map((name, idx) => ({
+                name,
+                idx,
+                score: state.scores[idx] || 0
+            })).sort((a, b) => b.score - a.score);
+
+            const winner = leaderboard[0];
+
+            $main.innerHTML = `
+                <div class="glass-panel p-6 rounded-3xl shadow-xl text-center space-y-5 border border-white animate-fadeIn">
+                    <div class="space-y-1">
+                        <div class="inline-block px-4 py-1 bg-red-100 text-red-600 rounded-full font-black text-xs">
+                            🎮 게임 종료!
+                        </div>
+                        <h2 class="text-2xl font-black text-slate-800 font-display">
+                            🎉 승리! 최고의 추리왕
+                        </h2>
+                        <p class="text-xs text-slate-500">총 4라운드가 끝났습니다. 축하합니다!</p>
+                    </div>
+
+                    <div class="bg-gradient-to-b from-amber-400 to-amber-500 text-slate-900 p-4 rounded-2xl shadow-lg font-display">
+                        <i class="fa-solid fa-trophy text-4xl text-amber-100 mb-1 animate-bounce-short"></i>
+                        <div class="text-xs font-bold text-amber-900">최종 1위 우승자</div>
+                        <div class="text-2xl font-black">${winner.name}</div>
+                        <div class="text-sm font-black mt-1 bg-white/30 inline-block px-3 py-0.5 rounded-full">
+                            총 ${winner.score}점 획득
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-600 mb-2 text-left">🏆 누적 명예의 전당</h3>
+                        <div class="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
+                            ${leaderboard.map((item, rank) => `
+                                <div class="bg-white/80 p-2.5 rounded-xl border border-slate-200 text-xs flex items-center justify-between font-bold">
+                                    <span class="flex items-center gap-2">
+                                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${rank === 0 ? 'bg-amber-400 text-slate-900' : rank === 1 ? 'bg-slate-300 text-slate-800' : rank === 2 ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-500'}">
+                                            ${rank + 1}
+                                        </span>
+                                        ${item.name}
+                                    </span>
+                                    <span class="text-indigo-600">${item.score}점</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-100 p-3 rounded-2xl text-xs text-slate-600 font-medium">
+                        👏 모두 훌륭한 교과 추리력을 보여주었습니다!
+                    </div>
+
+                    <button type="button" onclick="resetToSetup()" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-lg font-display flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> 새 게임 설정으로 이동
+                    </button>
+                </div>
+            `;
+        }
+
+        function resetToSetup() {
+            state.step = 'SETUP';
+            render();
+        }
+
+        window.onload = function() {
+            setNumPlayers(4);
+            render();
+        };
+    </script>
+</body>
+</html>
